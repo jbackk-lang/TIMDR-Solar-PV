@@ -29,9 +29,20 @@ predict = TIMDRSolarPredict()
 print(predict.degradation_rate_per_year(t, E))
 "
 
-python api.py       # REST API na http://127.0.0.1:5001
-pytest -q           # 7 testow
+python api.py       # REST API + dashboard na http://127.0.0.1:5001
+pytest -q           # 17 testow
 ```
+
+Na Windows: `run.bat` instaluje zależności i uruchamia API/dashboard w
+przeglądarce (bez uruchamiania testów — testy uruchom osobno przez
+`pytest -q`).
+
+Dashboard (`static/dashboard.html`, serwowany na `/`): wybór
+scenariusza demo, wykresy E(t)/trendu, karty health score/tempa
+degradacji/czasu do progu/fusion score/anomalii/rytmu, wgrywanie
+własnego CSV (kolumny `power, poa_irradiance, module_temp`; `pdc0` i
+`gamma_pdc` podaje się osobno w polach obok, bo to nie są kolumny
+czasowe).
 
 ## Czym się różni od `TIMDR-Battery-Predict`
 
@@ -124,9 +135,6 @@ sprawdzony ręcznie, ale nieuruchomiony" w sesji bez dostępu do sandboxa.
   tego służy `trend()`.
 - Brak walidacji na realnych danych (patrz wyżej) — priorytet numer 1
   do zrobienia przed jakimkolwiek użyciem produkcyjnym.
-- Brak dashboardu (`static/`) — `api.py` działa jako czyste REST API,
-  UI nie zostało jeszcze zbudowane (w przeciwieństwie do
-  `TIMDR-Battery-Predict`, który ma pełny dashboard).
 
 ## Rozszerzenie: analiza zespolona PV+bateria (`timdr_pv_battery_coupling.py`)
 
@@ -181,6 +189,8 @@ TIMDR-Solar-PV/
 ├── real_pvdaq_test.py               — walidacja na realnych danych NREL PVDAQ (do uruchomienia przez usera)
 ├── test_demo_scenarios.py           — 7 testow (kontrole pozytywne/negatywne)
 ├── test_pv_battery_coupling.py      — 10 testow rozszerzenia (kontrole pozytywne/negatywne)
-├── api.py                           — REST API (Flask)
+├── api.py                           — REST API (Flask), serwuje dashboard na /
+├── static/dashboard.html            — dashboard (wykresy, karty wynikow, wgrywanie CSV)
+├── run.bat                          — Windows: instaluje zaleznosci, uruchamia API/dashboard
 ├── requirements.txt, LICENSE, .gitignore
 ```
