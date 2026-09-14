@@ -1,0 +1,5 @@
+numpy>=1.22
+pandas>=1.4
+pvlib>=0.10
+flask>=2.0
+pytest>=7.0

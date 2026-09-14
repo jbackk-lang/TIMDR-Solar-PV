@@ -1,0 +1,142 @@
+# TIMDR-Solar-PV
+
+Detekcja degradacji, zabrudzenia, zacienienia i awarii inwertera w
+instalacji fotowoltaicznej — na tym samym operatorze TIMDR
+(fuse → twist/trend/anomalies/rhythm → fusion_score), którego
+używają `TIMDR-Battery-Predict` i `TIMDR-Industrial-Predict`, więc
+**dokłada się do reszty ekosystemu bez zmiany interfejsu wywołania**
+(patrz sekcja "Podłączalność" niżej).
+
+## Instalacja
+
+```bash
+pip install -r requirements.txt
+```
+
+## Szybki start
+
+```bash
+python -c "
+from demo_scenarios import make_demo_data
+from timdr_solar_fusion import TIMDRSolarFusion
+from timdr_solar_predict import TIMDRSolarPredict
+
+t, s = make_demo_data('long_term_degradation')
+fusion = TIMDRSolarFusion()
+E, PR = fusion.fuse(t, s['power'], s['poa_irradiance'], s['module_temp'], s['pdc0'])
+
+predict = TIMDRSolarPredict()
+print(predict.degradation_rate_per_year(t, E))
+"
+
+python api.py       # REST API na http://127.0.0.1:5001
+pytest -q           # 7 testow
+```
+
+## Czym się różni od `TIMDR-Battery-Predict`
+
+`TIMDRBatteryFusion.fuse()` nie miał prostego modelu fizycznego
+łączącego 4 surowe czujniki (napięcie/prąd/temperatura/rezystancja) w
+jedną wielkość, więc użyto ogólnej fuzji MAD z-score. Fotowoltaika MA
+dobrze ugruntowany, standardowy w branży model fizyczny — **PVWatts DC**
+(Dobos 2014, NREL/TP-6A20-62641, zaimplementowany w
+[pvlib](https://pvlib-python.readthedocs.io/), referencyjnej bibliotece
+NREL) — łączący naświetlenie POA i temperaturę modułu w oczekiwaną moc
+"zdrowego" panelu. Zamiast fuzji MAD, `fuse()` liczy prawdziwy
+**Performance Ratio** (przemysłowy standard): `PR = P_rzeczywiste /
+P_oczekiwane(G, T)`. To rozdziela efekt pogody (usuwany przez
+normalizację) od efektu stanu panelu (degradacja/brud/zacienienie/awaria
+— to co zostaje w PR). `E = 1 - PR` (0 = zdrowy panel) jest podawane
+dalej do DOKŁADNIE tych samych operatorów `twist/trend/anomalies/rhythm`
+co w Battery-Predict — te same wagi w `fusion_score()`, celowo nie
+przetunowane pod PV, żeby porównanie między domenami było uczciwe.
+
+## Podłączalność do reszty ekosystemu
+
+`TIMDRSolarFusion`/`TIMDRSolarPredict` mają dokładnie ten sam kształt
+API co `TIMDRBatteryFusion`/`TIMDRBatteryPredict`:
+
+```python
+fuse(t, ...) -> (E, cos_dodatkowego)     # Battery: (E, Z) / Solar: (E, PR)
+twist(t, E) -> (idx, z)
+trend(t, E, window) -> (slopes, z)
+anomalies(E) -> (idx, z)
+rhythm(E) -> (periods, score)
+fusion_score(twist_z, trend_z, anomaly_z, rhythm_score) -> float
+```
+
+Jedyna rzecz specyficzna dla domeny to argumenty `fuse()` (tu:
+`power, poa_irradiance, module_temp, pdc0`, nie `voltage, current,
+temperature, resistance`). Żeby użyć tego kodu w innym repo: skopiuj
+`timdr_solar_fusion.py` + `timdr_solar_predict.py` z nagłówkiem
+"ZWENDOROWANE" (ten sam wzorzec co reszta ekosystemu — patrz
+`KATEGORIE.md` w `jbackk-lang.github.io`, sekcja "Powiązania kodu") —
+reszta kodu wywołującego (np. `api.py`, dashboard) zmienia się tylko w
+miejscu wywołania `fuse()`.
+
+## Metodologia i uczciwe ograniczenia
+
+**Kontrola pozytywna (zweryfikowana empirycznie):** scenariusz
+`long_term_degradation` wstrzykuje znane tempo degradacji 1.5%/rok
+(celowo powyżej mediany NREL 0.75%/rok, żeby kontrola była
+jednoznaczna). Pierwszy przebieg `degradation_rate_per_year()` odzyskał
+**1.497%/rok** (błąd względny 0.2%) — mechanizm działa, nie tylko
+"nie crashuje".
+
+**Uczciwy wynik negatywny (nie ukryty):** `anomalies()` (globalny
+MAD z-score na E) **NIE wykrywa** trwałego skoku poziomu (scenariusz
+`partial_shading_onset`) — bo po zdarzeniu "nowy poziom" staje się
+częścią rozkładu tła, nie odstającą wartością względem NIEGO samego.
+To ten sam problem klasy "kalibracja na oknie zawierającym już
+zdarzenie", znany z `TIMDR-Earthquake-Core` (`HISTORIA_I_TESTY.md`).
+Zamiast tego `trend()` (regresja krocząca) wykrywa PRZEJŚCIE między
+poziomami jako lokalny wybuch nachylenia — **to jest właściwy operator
+dla trwałego zacienienia w tym zestawie narzędzi, nie `anomalies()`**.
+Test `test_partial_shading_onset_missed_by_anomalies_but_caught_by_trend`
+dokumentuje to wprost, zamiast cicho zmieniać scenariusz na taki, który
+"wygląda ładniej".
+
+**Dane syntetyczne są fizycznie ugruntowane, nie dowolne:** geometria
+słoneczna i model clearsky pochodzą z pvlib (ta sama biblioteka, której
+używa NREL/przemysł) dla prawdziwej lokalizacji (Denver, CO). Temperatura
+otoczenia jest STYLIZOWANYM modelem sezonowym (sinusoida dopasowana do
+typowego klimatu Denver) — jawnie oznaczone jako nie-prawdziwy zapis
+stacji pogodowej, w odróżnieniu od naświetlenia/geometrii słonecznej.
+
+**Walidacja na PRAWDZIWYCH danych NREL PVDAQ: NIE WYKONANA w tym
+środowisku.** `real_pvdaq_test.py` jest gotowy do uruchomienia (parsuje
+format PVDAQ wg oficjalnej dokumentacji schematu), ale sandbox, w którym
+ten kod powstał, miał dostęp sieciowy tylko do github.com i PyPI — sam
+bucket danych PVDAQ (dziesiątki-setki MB na system, publiczny S3 bez
+logowania) był niedostępny. Instrukcja pobrania i uruchomienia
+samodzielnie: patrz nagłówek `real_pvdaq_test.py`. To jest jawnie
+oznaczone jako otwarty punkt, nie ukryte za milczeniem — analogicznie do
+tego, jak `TIMDR-Geometry-Formalism` oznaczył swój kod jako "napisany i
+sprawdzony ręcznie, ale nieuruchomiony" w sesji bez dostępu do sandboxa.
+
+## Ograniczenia (zwięźle)
+
+- Model PVWatts zakłada stały `pdc0`/`gamma_pdc` — nie modeluje
+  degradacji spektralnej ani zmian kąta padania (IAM) osobno; oba
+  wchodzą w wypadkową PR, więc detektor widzi je jako "coś się zmienia",
+  nie rozróżnia który mechanizm.
+- `anomalies()` nie wykrywa trwałych skoków poziomu (patrz wyżej) — do
+  tego służy `trend()`.
+- Brak walidacji na realnych danych (patrz wyżej) — priorytet numer 1
+  do zrobienia przed jakimkolwiek użyciem produkcyjnym.
+- Brak dashboardu (`static/`) — `api.py` działa jako czyste REST API,
+  UI nie zostało jeszcze zbudowane (w przeciwieństwie do
+  `TIMDR-Battery-Predict`, który ma pełny dashboard).
+
+## Struktura
+
+```
+TIMDR-Solar-PV/
+├── timdr_solar_fusion.py   — operator: fuse/twist/trend/anomalies/rhythm/fusion_score
+├── timdr_solar_predict.py  — degradation_rate_per_year/time_to_threshold/health_score
+├── demo_scenarios.py       — 5 syntetycznych scenariuszy (fizycznie ugruntowanych przez pvlib)
+├── real_pvdaq_test.py      — walidacja na realnych danych NREL PVDAQ (do uruchomienia przez usera)
+├── test_demo_scenarios.py  — 7 testow (kontrole pozytywne/negatywne)
+├── api.py                  — REST API (Flask)
+├── requirements.txt, LICENSE, .gitignore
+```
