@@ -40,10 +40,7 @@ REQUIRED_FIELDS = ["power", "poa_irradiance", "module_temp"]
 
 @app.route("/")
 def index():
-    return jsonify({
-        "service": "TIMDR-Solar-PV",
-        "endpoints": ["/api/health", "/api/scenarios", "/api/demo", "/api/analyze (POST)"],
-    })
+    return send_from_directory(app.static_folder, "dashboard.html")
 
 
 @app.route("/api/health")
