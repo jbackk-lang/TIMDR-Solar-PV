@@ -128,15 +128,59 @@ sprawdzony ręcznie, ale nieuruchomiony" w sesji bez dostępu do sandboxa.
   UI nie zostało jeszcze zbudowane (w przeciwieństwie do
   `TIMDR-Battery-Predict`, który ma pełny dashboard).
 
+## Rozszerzenie: analiza zespolona PV+bateria (`timdr_pv_battery_coupling.py`)
+
+Odpowiedź na pytanie "co jak połączyć z Battery-Predict, jak zadziała
+system na zaciemnienie" — zamiast dwóch osobnych systemów porównywanych
+po fakcie, jeden wspólny potok: deficyt PV (`E_pv=1-PR`) napędza
+dodatkowe obciążenie/zużycie baterii, które trafia do TEGO SAMEGO kanału
+rezystancji w `TIMDRBatteryFusion.fuse()` (zwendorowana kopia w
+`_vendor_timdr_battery_fusion.py`, ten sam wzorzec co
+`TIMDR-Earthquake-Core/core/_vendor_timdr_meta_dynamics_core.py`).
+
+**Dwa mechanizmy z literatury (research przed budową, nie zgadywanie):**
+
+1. Zużycie cykliczne z kompensacji prądowej — zacienienie PV → bateria
+   kompensuje większym prądem → większy skumulowany przepływ ładunku (Ah
+   throughput) → rezystancja rośnie w przybliżeniu jak `R0+k*sqrt(Q_cum)`
+   (power-law throughput/capacity-fade, ~0.5, z modeli starzenia cykli
+   ogniw grafit-LFP — [Naumann et al., cycle aging graphite-LFP](https://www.sciencedirect.com/science/article/abs/pii/S0378775310021269),
+   [przegląd capacity fade vs. resistance increase](https://www.sciencedirect.com/science/article/pii/S0378775325017574)).
+   To NIE jest chwilowy spadek napięcia pod obciążeniem (odwracalny) —
+   to skumulowany, nieodwracalny efekt.
+2. Korozja od przeładowania — dłuższy czas w wysokim SOC → gazowanie/
+   ciepło → wilgoć/kondensacja w obudowie → korozja styków → też wyższa
+   rezystancja, niezależnie od (1) ([ryzyko przeładowania baterii](https://solarif.com/academy-article/what-is-the-risk-of-battery-overcharging-in-solar-systems/),
+   [kondensacja w szczelnych obudowach elektroniki](https://www.yg-enclosure.com/article/waterproof-enclosure-for-solar-charge-controller-installation-guide.html)).
+
+Obie hipotezy zbiegają się na TYM SAMYM obserwowalnym parametrze
+(rezystancja) — dlatego moduł nie dodaje nowego kanału czujnika, tylko
+modeluje obie przyczyny jako wkład do jednej już istniejącej wielkości.
+
+**Uczciwy wynik testu (`test_pv_battery_coupling.py`, 10/10 testów,
+pre-rejestrowane progi):** przy umiarkowanej częstości zacienienia (20
+zdarzeń/2 lata) efekt jest REALNY, ale SKROMNY — końcowa rezystancja
+wyższa o ~2% (nie dramatycznie), `max|trend_z|` wyższy o ~13%. Pierwsza
+próba z globalną regresją liniową na całej historii dała mylącą względną
+różnicę 140% — to był artefakt bliskiego zera mianownika, nie prawdziwy
+efekt, i został odrzucony na rzecz miary absolutnej/`trend_z`. Osobny
+test potwierdza też wcześniejszy wynik z tej sesji: POJEDYNCZE zdarzenie
+zacienienia (jednorazowy skok prądu) NIE wywołuje fałszywego alarmu
+baterii (ani `anomalies()`, ani `twist()`) — efekt ujawnia się dopiero
+jako powolny `trend()` w horyzoncie miesięcy/lat, nie jako ostry alarm.
+
 ## Struktura
 
 ```
 TIMDR-Solar-PV/
-├── timdr_solar_fusion.py   — operator: fuse/twist/trend/anomalies/rhythm/fusion_score
-├── timdr_solar_predict.py  — degradation_rate_per_year/time_to_threshold/health_score
-├── demo_scenarios.py       — 5 syntetycznych scenariuszy (fizycznie ugruntowanych przez pvlib)
-├── real_pvdaq_test.py      — walidacja na realnych danych NREL PVDAQ (do uruchomienia przez usera)
-├── test_demo_scenarios.py  — 7 testow (kontrole pozytywne/negatywne)
-├── api.py                  — REST API (Flask)
+├── timdr_solar_fusion.py            — operator: fuse/twist/trend/anomalies/rhythm/fusion_score
+├── timdr_solar_predict.py           — degradation_rate_per_year/time_to_threshold/health_score
+├── timdr_pv_battery_coupling.py     — rozszerzenie: analiza zespolona PV+bateria (patrz wyzej)
+├── _vendor_timdr_battery_fusion.py  — zwendorowana kopia TIMDRBatteryFusion (dla rozszerzenia)
+├── demo_scenarios.py                — 5 syntetycznych scenariuszy (fizycznie ugruntowanych przez pvlib)
+├── real_pvdaq_test.py               — walidacja na realnych danych NREL PVDAQ (do uruchomienia przez usera)
+├── test_demo_scenarios.py           — 7 testow (kontrole pozytywne/negatywne)
+├── test_pv_battery_coupling.py      — 10 testow rozszerzenia (kontrole pozytywne/negatywne)
+├── api.py                           — REST API (Flask)
 ├── requirements.txt, LICENSE, .gitignore
 ```
