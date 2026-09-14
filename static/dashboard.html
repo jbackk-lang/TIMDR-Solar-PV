@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>TIMDR Solar PV — Dashboard</title>
+<style>
+  :root{
+    --bg: #0e1420;
+    --panel: #161e2d;
+    --panel-border: #253248;
+    --text: #e6edf5;
+    --muted: #8393ab;
+    --ok: #35d488;
+    --warn: #f5a623;
+    --crit: #ef4b5f;
+    --accent: #4f9dff;
+    --mono: "Consolas","SFMono-Regular",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",Arial,sans-serif; padding:20px 28px 40px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:18px; flex-wrap:wrap; gap:10px;
+  }
+  header h1{ font-size:20px; margin:0; font-weight:600; letter-spacing:.3px; }
+  header .sub{ color:var(--muted); font-size:12px; font-family:var(--mono); }
+  .status-pill{
+    padding:5px 14px; border-radius:20px; font-size:12px; font-weight:700;
+    letter-spacing:.5px; text-transform:uppercase;
+  }
+  .status-ok{ background:rgba(53,212,136,.15); color:var(--ok); border:1px solid var(--ok); }
+  .status-warn{ background:rgba(245,166,35,.15); color:var(--warn); border:1px solid var(--warn); }
+  .status-crit{ background:rgba(239,75,95,.15); color:var(--crit); border:1px solid var(--crit); }
+
+  .controls{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:10px; padding:12px 16px; margin-bottom:6px;
+  }
+  .controls label{ font-size:12px; color:var(--muted); margin-right:4px; }
+  .controls input[type=number]{
+    background:#0c121d; border:1px solid var(--panel-border); color:var(--text);
+    border-radius:6px; padding:5px 8px; width:80px; font-family:var(--mono); font-size:12px;
+  }
+  .controls select{
+    background:#0c121d; border:1px solid var(--panel-border); color:var(--text);
+    border-radius:6px; padding:5px 8px; font-size:12px; min-width:220px;
+  }
+  .controls input[type=text]{
+    background:#0c121d; border:1px solid var(--panel-border); color:var(--text);
+    border-radius:6px; padding:5px 8px; width:60px; font-family:var(--mono); font-size:12px;
+  }
+  .scenario-desc{
+    font-size:12px; color:var(--muted); margin:6px 0 18px 2px; font-style:italic;
+  }
+  .controls button{
+    background:var(--accent); color:#04101f; border:none; border-radius:6px;
+    padding:8px 16px; font-weight:700; font-size:12px; cursor:pointer; letter-spacing:.3px;
+  }
+  .controls button.secondary{ background:#233149; color:var(--text); }
+  .controls button:hover{ filter:brightness(1.1); }
+  #err{ color:var(--crit); font-size:12px; font-family:var(--mono); margin-left:auto; white-space:pre-wrap; max-width:340px; }
+  #csvFile{ display:none; }
+
+  .cards{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:14px; margin-bottom:18px;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:10px;
+    padding:16px 18px; position:relative; overflow:hidden;
+  }
+  .card .label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
+  .card .value{ font-size:30px; font-weight:700; margin-top:6px; font-family:var(--mono); }
+  .card .unit{ font-size:13px; color:var(--muted); margin-left:4px; font-weight:400; }
+  .card .subline{ font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono); }
+  .card .bar{ height:5px; border-radius:3px; background:#0c121d; margin-top:12px; overflow:hidden; }
+  .card .bar-fill{ height:100%; border-radius:3px; transition:width .3s ease; }
+
+  .grid2{ display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:14px; }
+  .panel{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:10px;
+    padding:16px 18px;
+  }
+  .panel h2{ font-size:13px; margin:0 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+  .legend{ font-size:10px; color:var(--muted); margin-bottom:6px; }
+  .legend span{ margin-right:12px; }
+  .legend .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+  .sensor-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .sensor-box{ background:#0c121d; border:1px solid var(--panel-border); border-radius:8px; padding:10px 12px; }
+  .sensor-box .name{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .sensor-box canvas{ display:block; width:100%; }
+  .empty-msg{ color:var(--muted); font-size:12px; font-style:italic; padding:20px 0; text-align:center; }
+  canvas{ max-width:100%; }
+  footer{ margin-top:20px; color:var(--muted); font-size:11px; font-family:var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>☀️ TIMDR Solar PV</h1>
+    <div class="sub">fuzja: moc DC/AC · naświetlenie POA · temperatura modułu → PR (PVWatts) — twist · trend · anomalie · rytm · degradacja</div>
+  </div>
+  <div id="statusPill" class="status-pill status-ok">brak danych</div>
+</header>
+
+<div class="controls">
+  <label>scenariusz</label>
+  <select id="inScenario"></select>
+  <button id="btnDemo">🎲 Wczytaj dane demo</button>
+  <button id="btnCsv" class="secondary">📄 Wczytaj CSV...</button>
+  <input id="csvFile" type="file" accept=".csv,text/csv">
+  <label>kol. czasu</label>
+  <input id="inTCol" type="text" value="t">
+  <label>pdc0 [W]</label>
+  <input id="inPdc0" type="number" step="1" value="5000">
+  <label>gamma_pdc</label>
+  <input id="inGamma" type="number" step="0.001" value="-0.004">
+  <label>próg</label>
+  <input id="inThreshold" type="number" step="0.01" value="0.10">
+  <label>okno [dni]</label>
+  <input id="inWindow" type="number" step="1" value="365">
+  <button id="btnAnalyze" class="secondary">▶ Uruchom analizę</button>
+  <span id="err"></span>
+</div>
+<div id="scenarioDesc" class="scenario-desc"></div>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Health score</div>
+    <div class="value"><span id="valHealth">—</span></div>
+    <div class="bar"><div id="barHealth" class="bar-fill" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <div class="label">Tempo degradacji</div>
+    <div class="value"><span id="valDegr">—</span><span class="unit">%/rok</span></div>
+    <div class="subline" id="subDegr">vs mediana NREL (0.75%/rok): —</div>
+  </div>
+  <div class="card">
+    <div class="label">Czas do progu</div>
+    <div class="value"><span id="valTTD">—</span><span class="unit">dni</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Fusion score</div>
+    <div class="value"><span id="valFusion">—</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Anomalie / Twist</div>
+    <div class="value"><span id="valAnomalies">—</span><span class="unit">/</span><span id="valTwist">—</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Wykryty rytm</div>
+    <div class="value" style="font-size:18px;"><span id="valRhythm">—</span></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>E(t) = 1 − PR — sygnał stanu panelu (0=zdrowy, &gt;0=niedobór wzgl. modelu)</h2>
+    <div class="legend">
+      <span><i class="dot" style="background:#4f9dff"></i>E(t)</span>
+      <span><i class="dot" style="background:#ef4b5f"></i>próg / anomalie</span>
+      <span><i class="dot" style="background:#f5a623"></i>twist</span>
+    </div>
+    <canvas id="chartE" height="180"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Trend (nachylenie E, okno kroczące, próbki dzienne)</h2>
+    <canvas id="chartTrend" height="180"></canvas>
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:14px;">
+  <h2>Surowe czujniki (power / poa_irradiance / module_temp)</h2>
+  <div class="sensor-grid" id="sensorGrid"><div class="empty-msg">Wczytaj dane demo albo CSV, żeby zobaczyć czujniki.</div></div>
+</div>
+
+<footer>TIMDR-Solar-PV · lokalne API (Flask, 127.0.0.1:5001) · dane nie opuszczają tego komputera · wykresy rysowane własnym kodem (canvas), bez zależności od CDN · próbka = jeden pomiar dziennie w lokalne południe słoneczne, nie co godzinę</footer>
+
+<script>
+'use strict';
+const COLORS = { ok:'#35d488', warn:'#f5a623', crit:'#ef4b5f', accent:'#4f9dff', muted:'#8393ab', grid:'#1c2536', axis:'#8393ab' };
+const REQUIRED_SENSORS = ['power', 'poa_irradiance', 'module_temp'];
+const NREL_MEDIAN_DEGRADATION = 0.75; // %/rok, Jordan i in./NREL PVDAQ - benchmark zewnetrzny, nie dostrojony
+let lastData = null;   // {t, sensors, pdc0?, default_threshold?}
+let scenarios = [];
+
+function showError(msg){
+  document.getElementById('err').textContent = msg;
+  if (msg) console.error('[TIMDR dashboard]', msg);
+}
+
+function fmt(x, digits){
+  if (x === null || x === undefined || Number.isNaN(x)) return '—';
+  return Number(x).toFixed(digits === undefined ? 2 : digits);
+}
+
+// ------------------------------------------------------------
+// Minimalny, bezzależnościowy silnik wykresów (Canvas 2D) - bez CDN.
+// ------------------------------------------------------------
+function drawChart(canvas, opts){
+  if (!canvas) return;
+  const parentWidth = canvas.parentElement ? canvas.parentElement.clientWidth : 400;
+  const cssWidth = Math.max(200, parentWidth);
+  const cssHeight = opts.height || 160;
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const labels = opts.labels || [];
+  const n = labels.length;
+  const pad = { left: 42, right: 10, top: 8, bottom: 16 };
+  const plotW = Math.max(10, cssWidth - pad.left - pad.right);
+  const plotH = Math.max(10, cssHeight - pad.top - pad.bottom);
+
+  if (n === 0){
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('brak danych', cssWidth / 2, cssHeight / 2);
+    return;
+  }
+
+  const allY = [];
+  (opts.series || []).forEach(s => {
+    if (s.type === 'scatter'){
+      (s.points || []).forEach(p => { if (isFinite(p.y)) allY.push(p.y); });
+    } else {
+      (s.data || []).forEach(v => { if (v !== null && v !== undefined && isFinite(v)) allY.push(v); });
+    }
+  });
+  if (opts.hline !== undefined && opts.hline !== null && isFinite(opts.hline)) allY.push(opts.hline);
+  if (allY.length === 0){ allY.push(0, 1); }
+
+  let yMin = Math.min(...allY), yMax = Math.max(...allY);
+  if (yMin === yMax){ yMin -= 1; yMax += 1; }
+  const yPad = (yMax - yMin) * 0.1;
+  yMin -= yPad; yMax += yPad;
+
+  const xAt = i => pad.left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yAt = v => pad.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1;
+  ctx.fillStyle = COLORS.axis; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  const gridLines = 4;
+  for (let g = 0; g <= gridLines; g++){
+    const yy = pad.top + (g / gridLines) * plotH;
+    ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(pad.left + plotW, yy); ctx.stroke();
+    const val = yMax - (g / gridLines) * (yMax - yMin);
+    ctx.fillText(fmt(val, Math.abs(val) < 10 ? 2 : 1), pad.left - 4, yy);
+  }
+
+  if (opts.zeroLine && yMin < 0 && yMax > 0){
+    ctx.strokeStyle = '#3a4a68'; ctx.lineWidth = 1;
+    const yy = yAt(0);
+    ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(pad.left + plotW, yy); ctx.stroke();
+  }
+
+  if (opts.hline !== undefined && opts.hline !== null && isFinite(opts.hline)){
+    ctx.strokeStyle = opts.hlineColor || COLORS.crit;
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 1;
+    const yy = yAt(opts.hline);
+    ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(pad.left + plotW, yy); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  (opts.series || []).forEach(s => {
+    if (s.type === 'scatter'){
+      ctx.fillStyle = s.color;
+      (s.points || []).forEach(p => {
+        if (!isFinite(p.y)) return;
+        ctx.beginPath();
+        ctx.arc(xAt(p.i), yAt(p.y), 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      return;
+    }
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.4;
+    ctx.beginPath();
+    let started = false;
+    (s.data || []).forEach((v, i) => {
+      if (v === null || v === undefined || !isFinite(v)){ started = false; return; }
+      const xx = xAt(i), yy = yAt(v);
+      if (!started){ ctx.moveTo(xx, yy); started = true; } else { ctx.lineTo(xx, yy); }
+    });
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = COLORS.axis; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = '9px monospace';
+  const xTicks = Math.min(6, n);
+  for (let k = 0; k < xTicks; k++){
+    const idx = Math.round(k * (n - 1) / Math.max(1, xTicks - 1));
+    ctx.fillText(fmt(labels[idx], 0), xAt(idx), pad.top + plotH + 2);
+  }
+}
+
+// ------------------------------------------------------------
+// Scenariusze demo
+// ------------------------------------------------------------
+async function loadScenarios(){
+  const res = await fetch('/api/scenarios');
+  if (!res.ok) throw new Error('nie udalo sie pobrac listy scenariuszy (HTTP ' + res.status + ')');
+  scenarios = await res.json();
+  const sel = document.getElementById('inScenario');
+  sel.innerHTML = scenarios.map(s => `<option value="${s.id}">${s.id}</option>`).join('');
+  updateScenarioDesc();
+}
+
+function updateScenarioDesc(){
+  const id = document.getElementById('inScenario').value;
+  const s = scenarios.find(x => x.id === id);
+  document.getElementById('scenarioDesc').textContent = s ? s.description : '';
+}
+
+async function loadDemo(){
+  showError('');
+  const scenario = document.getElementById('inScenario').value || 'normal_operation';
+  const res = await fetch('/api/demo?scenario=' + encodeURIComponent(scenario));
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+
+  lastData = {
+    t: data.t_days,
+    sensors: { power: data.power, poa_irradiance: data.poa_irradiance, module_temp: data.module_temp },
+    pdc0: data.pdc0,
+    default_threshold: data.default_threshold,
+    scenario: data.scenario,
+  };
+  updateScenarioDesc();
+  document.getElementById('inThreshold').value = data.default_threshold;
+  document.getElementById('inPdc0').value = data.pdc0;
+  document.getElementById('inTCol').value = 't';
+  renderSensors(lastData);
+  return lastData;
+}
+
+// ------------------------------------------------------------
+// Wczytywanie wlasnego CSV. Wymagane DOKLADNIE 3 kolumny czujnikow o
+// nazwach power/poa_irradiance/module_temp (API tego wymaga -
+// TIMDRSolarFusion.fuse() ma stala sygnature). pdc0/gamma_pdc to NIE
+// kolumny czasowe - podaj je recznie w polach obok (nie ma ich w CSV).
+// ------------------------------------------------------------
+function parseCsv(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) throw new Error('CSV musi mieć nagłówek i co najmniej 1 wiersz danych.');
+  const headers = lines[0].split(',').map(h => h.trim());
+  const rows = lines.slice(1).map(l => l.split(',').map(v => v.trim()));
+
+  const cols = {};
+  headers.forEach((h, i) => { cols[h] = rows.map(r => parseFloat(r[i])); });
+  return { headers, cols };
+}
+
+async function loadCsvFile(file, tColName){
+  showError('');
+  const text = await file.text();
+  let parsed;
+  try{
+    parsed = parseCsv(text);
+  }catch(e){
+    throw new Error('Błąd parsowania CSV: ' + e.message);
+  }
+
+  const { headers, cols } = parsed;
+  let t;
+  if (headers.includes(tColName) && cols[tColName].every(v => isFinite(v))){
+    t = cols[tColName];
+  } else {
+    const n = cols[headers[0]] ? cols[headers[0]].length : 0;
+    t = Array.from({ length: n }, (_, i) => i);
+  }
+
+  const missing = REQUIRED_SENSORS.filter(name => !(name in cols) || !cols[name].every(v => isFinite(v)));
+  if (missing.length){
+    throw new Error(`Brakuje wymaganych kolumn (dokładnie te 3 nazwy): ${REQUIRED_SENSORS.join(', ')}. Brakujące/niepoprawne: ${missing.join(', ')}. pdc0/gamma_pdc podaj ręcznie w polach obok - to nie są kolumny czasowe.`);
+  }
+
+  const sensors = {};
+  REQUIRED_SENSORS.forEach(name => { sensors[name] = cols[name]; });
+
+  lastData = { t, sensors, scenario: null, default_threshold: null };
+  document.getElementById('scenarioDesc').textContent = `Własny plik: ${file.name} (${t.length} próbek) — sprawdź pdc0/gamma_pdc/próg obok, nie są wczytywane z CSV.`;
+  renderSensors(lastData);
+  return lastData;
+}
+
+// ------------------------------------------------------------
+// Render
+// ------------------------------------------------------------
+function renderSensors(data){
+  const grid = document.getElementById('sensorGrid');
+  grid.innerHTML = '';
+  const names = Object.keys(data.sensors);
+  if (names.length === 0){
+    grid.innerHTML = '<div class="empty-msg">Brak czujników do pokazania.</div>';
+    return;
+  }
+  names.forEach((name) => {
+    const box = document.createElement('div');
+    box.className = 'sensor-box';
+    const canvas = document.createElement('canvas');
+    canvas.height = 80;
+    const label = document.createElement('div');
+    label.className = 'name';
+    label.textContent = name;
+    box.appendChild(label);
+    box.appendChild(canvas);
+    grid.appendChild(box);
+
+    const n = data.sensors[name].length;
+    const tSensor = Array.from({ length: n }, (_, k) => k);
+    drawChart(canvas, {
+      height: 80,
+      labels: tSensor,
+      series: [{ data: data.sensors[name], color: COLORS.accent, width: 1.2 }],
+    });
+  });
+}
+
+async function runAnalyze(){
+  showError('');
+  if (!lastData){ await loadDemo(); }
+  const threshold = parseFloat(document.getElementById('inThreshold').value);
+  const window_days = parseInt(document.getElementById('inWindow').value, 10);
+  const pdc0 = parseFloat(document.getElementById('inPdc0').value);
+  const gamma_pdc = parseFloat(document.getElementById('inGamma').value);
+
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      t_days: lastData.t,
+      power: lastData.sensors.power,
+      poa_irradiance: lastData.sensors.poa_irradiance,
+      module_temp: lastData.sensors.module_temp,
+      pdc0, gamma_pdc, threshold, window_days,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok){
+    throw new Error(data.error || ('Błąd analizy (HTTP ' + res.status + ')'));
+  }
+  renderResult(data);
+}
+
+function renderResult(data){
+  setStatus(data.health_score);
+  document.getElementById('valHealth').textContent = fmt(data.health_score, 2);
+  const barHealth = document.getElementById('barHealth');
+  const pct = Math.max(0, Math.min(1, data.health_score)) * 100;
+  barHealth.style.width = pct + '%';
+  barHealth.style.background = data.health_score >= 0.6 ? COLORS.ok : (data.health_score >= 0.3 ? COLORS.warn : COLORS.crit);
+
+  document.getElementById('valDegr').textContent = fmt(data.degradation_rate_pct_per_year, 2);
+  const ratio = data.degradation_vs_nrel_median_ratio;
+  document.getElementById('subDegr').textContent = 'vs mediana NREL (' + NREL_MEDIAN_DEGRADATION + '%/rok): '
+    + (ratio === null || ratio === undefined ? '—' : fmt(ratio, 2) + '×');
+
+  document.getElementById('valTTD').textContent = (data.time_to_threshold_days === null || data.time_to_threshold_days === undefined)
+    ? '∞' : fmt(data.time_to_threshold_days, 0);
+  document.getElementById('valFusion').textContent = fmt(data.fusion_score, 2);
+  document.getElementById('valAnomalies').textContent = data.anomaly_idx.length;
+  document.getElementById('valTwist').textContent = data.twist_idx.length;
+  document.getElementById('valRhythm').textContent = data.rhythm_periods.length
+    ? `okres ${data.rhythm_periods[0]} (moc ${fmt(data.rhythm_score, 2)})`
+    : 'brak';
+
+  const anomalyPoints = data.anomaly_idx.map(i => ({ i, y: data.E[i] }));
+  const twistPoints = data.twist_idx.map(i => ({ i, y: data.E[i] }));
+
+  drawChart(document.getElementById('chartE'), {
+    height: 220,
+    labels: data.t_days,
+    hline: data.threshold,
+    hlineColor: COLORS.crit,
+    series: [
+      { data: data.E, color: COLORS.accent, width: 1.6 },
+      { type: 'scatter', color: COLORS.crit, points: anomalyPoints },
+      { type: 'scatter', color: COLORS.warn, points: twistPoints },
+    ],
+  });
+
+  drawChart(document.getElementById('chartTrend'), {
+    height: 220,
+    labels: data.t_days,
+    zeroLine: true,
+    series: [{ data: data.trend_slopes, color: COLORS.warn, width: 1.3 }],
+  });
+}
+
+function setStatus(healthScore){
+  const pill = document.getElementById('statusPill');
+  pill.classList.remove('status-ok', 'status-warn', 'status-crit');
+  if (healthScore === null || healthScore === undefined){
+    pill.textContent = 'brak danych'; pill.classList.add('status-ok'); return;
+  }
+  if (healthScore >= 0.6){ pill.textContent = 'ok'; pill.classList.add('status-ok'); }
+  else if (healthScore >= 0.3){ pill.textContent = 'ostrzeżenie'; pill.classList.add('status-warn'); }
+  else { pill.textContent = 'krytyczny'; pill.classList.add('status-crit'); }
+}
+
+// ------------------------------------------------------------
+// Zdarzenia
+// ------------------------------------------------------------
+document.getElementById('btnDemo').addEventListener('click', () => {
+  loadDemo().then(runAnalyze).catch(e => showError(e.message));
+});
+document.getElementById('btnAnalyze').addEventListener('click', () => {
+  runAnalyze().catch(e => showError(e.message));
+});
+document.getElementById('inScenario').addEventListener('change', () => {
+  loadDemo().then(runAnalyze).catch(e => showError(e.message));
+});
+document.getElementById('btnCsv').addEventListener('click', () => {
+  document.getElementById('csvFile').click();
+});
+document.getElementById('csvFile').addEventListener('change', (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const tColName = document.getElementById('inTCol').value || 't';
+  loadCsvFile(file, tColName).then(runAnalyze).catch(e => showError(e.message));
+});
+window.addEventListener('resize', () => {
+  if (lastData) renderSensors(lastData);
+});
+
+loadScenarios().then(loadDemo).then(runAnalyze).catch(e => showError(e.message));
+</script>
+</body>
+</html>
