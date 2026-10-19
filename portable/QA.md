@@ -8,3 +8,5 @@
 - Testy projektu obejmują również pozostałe scenariusze syntetyczne i sprzężenie PV–bateria. To nie jest nowa walidacja na pomiarach rzeczywistej instalacji PVDAQ.
 
 Pierwsze przygotowanie długiego scenariusza demo może potrwać dłużej: projekt oblicza fizyczne warunki nasłonecznienia dla kolejnych dni. Sprawdzenie paczki nie zmienia algorytmów analizy ani progów modelu.
+
+Aktualizacja 2026.10.19.1: zielony przycisk „Uruchom analizę”, biały tekst, kontrast 5,02:1, osobny stan po najechaniu oraz obramowanie fokusu klawiatury. Identyfikator przycisku i obsługa kliknięcia zostały zachowane; algorytmy obliczeń bez zmian.
