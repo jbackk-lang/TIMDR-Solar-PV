@@ -62,6 +62,13 @@
   }
   .controls button.secondary{ background:#233149; color:var(--text); }
   .controls button:hover{ filter:brightness(1.1); }
+  .controls #btnAnalyze{
+    background:#15803d; color:#fff; border:1px solid #4ade80;
+    padding:10px 20px; box-shadow:0 2px 10px #15803d55;
+  }
+  .controls #btnAnalyze:hover{ background:#166534; filter:none; }
+  .controls #btnAnalyze:focus-visible{ outline:3px solid #bbf7d0; outline-offset:3px; }
+
   #err{ color:var(--crit); font-size:12px; font-family:var(--mono); margin-left:auto; white-space:pre-wrap; max-width:340px; }
   #csvFile{ display:none; }
 
@@ -124,7 +131,7 @@
   <input id="inThreshold" type="number" step="0.01" value="0.10">
   <label>okno [dni]</label>
   <input id="inWindow" type="number" step="1" value="365">
-  <button id="btnAnalyze" class="secondary">▶ Uruchom analizę</button>
+  <button id="btnAnalyze">▶ Uruchom analizę</button>
   <span id="err"></span>
 </div>
 <div id="scenarioDesc" class="scenario-desc"></div>
