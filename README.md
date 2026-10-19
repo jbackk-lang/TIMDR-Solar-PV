@@ -7,6 +7,14 @@ używają `TIMDR-Battery-Predict` i `TIMDR-Industrial-Predict`, więc
 **dokłada się do reszty ekosystemu bez zmiany interfejsu wywołania**
 (patrz sekcja "Podłączalność" niżej).
 
+## Wersja portable — Windows x64
+
+Gotowa paczka z Pythonem, bibliotekami i pełnym kodem: **[pobierz wersję portable](https://github.com/jbackk-lang/TIMDR-Solar-PV/releases/tag/portable-windows-x64-2026.10.19)**.
+
+Rozpakuj cały ZIP i uruchom `START.bat`. `STOP.bat` zatrzymuje serwer tej paczki, a `TESTY.bat` uruchamia dołączone testy. Nie trzeba instalować Pythona ani bibliotek. Demo, analiza własnego CSV i wykresy działają offline; pobieranie danych z serwisów zewnętrznych wymaga internetu. Paczka jest przeznaczona dla Windows 10/11 x64.
+
+Kod budowania, przypięte wersje zależności i instrukcja: [portable/README.md](portable/README.md).
+
 ## Instalacja
 
 ```bash

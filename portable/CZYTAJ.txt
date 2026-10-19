@@ -1,0 +1,20 @@
+TIMDR-Solar-PV portable — Windows x64
+
+1. Rozpakuj CALY ZIP do zapisywalnego katalogu (takze na pendrive).
+2. Uruchom START.bat. Panel otworzy sie w przegladarce.
+3. Do zakonczenia pracy uzyj STOP.bat. Zamkniecie karty nie zatrzymuje serwera.
+
+Python, biblioteki, kod oraz przyklady sa w paczce. Nie trzeba instalowac
+Pythona ani pobierac bibliotek. Demo, analiza i wykresy dzialaja offline.
+Pobieranie rzeczywistych danych z zewnetrznych serwisow wymaga internetu.
+
+Port domyslny: 5001. Jezeli zajmuje go inna aplikacja, launcher wybierze
+wolny port. Ponowne START otwiera juz dzialajaca instancje tej paczki.
+STOP nie zamyka innych aplikacji ani serwerow.
+
+TESTY.bat uruchamia dolaczone testy. Dziennik: runtime/server.log.
+Kod projektu: app. Biblioteki i ich licencje: python/Lib/site-packages.
+Licencja Pythona: python/LICENSE.txt. Wersje: BUILD-MANIFEST.json.
+
+Paczka jest przeznaczona dla 64-bitowego Windows 10/11.
+Nie uruchamiaj aplikacji bezposrednio wewnatrz ZIP-a.
