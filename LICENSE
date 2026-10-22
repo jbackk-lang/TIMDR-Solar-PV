@@ -9,3 +9,19 @@ is strictly prohibited without prior written permission from the author.
 Any violation will result in legal action under applicable copyright and intellectual property laws.
 
 Contact: [jbackk@gmail.com]
+
+
+SOLARA Developer License (v1.0)
+
+Kod SOLARA jest własnością autora.
+Użytkownik (Paweł Kowalski) otrzymuje prawo do modyfikacji kodu SOLARA i tworzenia commitów w repozytorium SOLARA.
+Zabrania się:
+kopiowania wag modeli TSI / AI‑SI‑TSI,
+publikowania kodu poza repozytorium SOLARA,
+trenowania modeli TSI,
+tworzenia pochodnych modeli AI,
+przekazywania kodu osobom trzecim,
+użycia kodu komercyjnie bez zgody autora.
+Kod SOLARA nie może być integrowany z innymi modelami AI bez zgody autora.
+Autor nie odpowiada za szkody wynikłe z użycia kodu.
+Licencja nie przenosi praw własności.
